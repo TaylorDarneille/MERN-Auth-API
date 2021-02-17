@@ -418,11 +418,11 @@ Each Passport strategy has to be configured for your specific app. Basically, Pa
 Once initialized, weʼll run the passport strategy as route middleware. When run as middleware, Passport receives the request, extracts the user information from the token, then attaches the user info back to the request object so it is accessible by whatever action (route) it hits.
 
 1. Create a new file in the `middleware` directory called `auth.js`.
-1. Install passport
+2. Install passport
 ```bash
 npm i passport
 ```
-1. import it into `auth.js`. Stub out the generic passport structure:
+3. import it into `auth.js`. Stub out the generic passport structure:
 
 ```js
 const passport = require('passport')
@@ -439,11 +439,11 @@ passport.use(strategy)
 passport.initialize()
 ```
 
-1. Install passport's [JWT strategy](http://www.passportjs.org/packages/passport-jwt/)
+4. Install passport's [JWT strategy](http://www.passportjs.org/packages/passport-jwt/)
 ```bash
 npm i passport-jwt
 ```
-1. import the `Strategy` constructor from `passport-jwt and construct the strategy:
+5. import the `Strategy` constructor from `passport-jwt and construct the strategy:
 ```js
 const passport = require('passport')
 const Strategy = require('passport-jwt').Strategy
@@ -453,7 +453,7 @@ const strategy = new Strategy(options, findUser)
 
 ...
 ```
-1. Create an `options` object that we'll pass into the `Strategy` constructor.
+6. Create an `options` object that we'll pass into the `Strategy` constructor.
 ```js
 const Strategy = require('passport-jwt').Strategy
 
@@ -462,7 +462,7 @@ const options = {}
 // construct the strategy (will define options and findUser soon)
 const strategy = new Strategy(options, findUser)
 ```
-1. The options object requires a `secretOrKey` field
+7. The options object requires a `secretOrKey` field
 
 ```js
 const Strategy = require('passport-jwt').Strategy
@@ -474,7 +474,10 @@ const options = {
 // construct the strategy (will define options and findUser soon)
 const strategy = new Strategy(options, findUser)
 ```
-1. The other required option field is `jwtFromRequest`. This has to be a function that accepts the request object as the only parameter and returns either the JWT as a string or null. This is called an *extractor function* because extracts and deserializes the JWT from the request object. Passport provides several built-in extractor functions and we will use `fromAuthHeaderAsBearerToken()`, which looks for the JWT in the authorization header with the scheme 'bearer'. Visit the passport docs on [extracting the JWT from the request](http://www.passportjs.org/packages/passport-jwt/#extracting-the-jwt-from-the-request) for more details.
+> Because this is a secret string, it should be stored in an `.env` file. We will do this later
+
+
+8. The other required option field is `jwtFromRequest`. This has to be a function that accepts the request object as the only parameter and returns either the JWT as a string or null. This is called an *extractor function* because extracts and deserializes the JWT from the request object. Passport provides several built-in extractor functions and we will use `fromAuthHeaderAsBearerToken()`, which looks for the JWT in the authorization header with the scheme 'bearer'. Visit the passport docs on [extracting the JWT from the request](http://www.passportjs.org/packages/passport-jwt/#extracting-the-jwt-from-the-request) for more details.
 
 ```js
 const Strategy = require('passport-jwt').Strategy
@@ -487,19 +490,21 @@ const options = {
 }
 ```
 
-1. Now we need to write the verification callback that gets passed as the second argument to the `Strategy` constructor. This callback is where we write custom code to go get the user's info from the database based on the token info. It will receive two arguments automatically:
+9. Now we need to write the verification callback that gets passed as the second argument to the `Strategy` constructor. This callback is where we write custom code to go get the user's info from the database based on the token info. It will receive two arguments automatically:
 * The deserialized JWT payload that has been extracted from the request object, which will contain the user's id
 * A `done` callback that is ready to receive the user object and pass it onto our routes. It takes any errors that happen along the way as the first argument, and the user object as the second.
 
-```js
-const findUser = (jwt_payload, done) {
-  User.findById(jwt_payload.id)
+```javascript
+const db = require('../models')
+
+const findUser = (jwt_payload, done) => {
+  db.User.findById(jwt_payload.id)
     .then(foundUser => done(null, user))
     .catch(err => done(err))
 }
 ```
 
-1. Each time the user logs in, we'll need to create a token for them. We will create a function that uses the [jsonwebtoken](https://www.npmjs.com/package/jsonwebtoken) `.sign` method to turn the user id and secret into a JWT using the RSA SHA256 algorithm. RSA SHA256 will first hash the user id and the secret using the SHA256 algorithm, then encrypt that hash using the RSA algorithm.
+10. Each time the user logs in, we'll need to create a token for them. We will create a function that uses the [jsonwebtoken](https://www.npmjs.com/package/jsonwebtoken) `.sign` method to turn the user id and secret into a JWT using the RSA SHA256 algorithm. RSA SHA256 will first hash the user id and the secret using the SHA256 algorithm, then encrypt that hash using the RSA algorithm.
 
  First install the package and import it into the `auth.js` file:
 ```bash
@@ -509,9 +514,9 @@ npm install jsonwebtoken
 const jwt = require('jsonwebtoken')
 ```
 
-1. Now we import bcrypt and write the function to be exported:
+11. Now we import bcrypt and write the function to be exported:
 
-```js
+```javascript
 ...
 const bcrypt = require('bcrypt')
 ...
@@ -542,14 +547,15 @@ const createUserToken = (req, user) => {
 }
 ```
 
-1. Now export `createUserToken` at the bottom of `auth.js` so we can use it in our `/api/login` route. So far, your `auth.js` should look like this:
+12. Now export `createUserToken` at the bottom of `auth.js` so we can use it in our `/api/login` route. So far, your `auth.js` should look like this:
 
-```js
+```javascript
 const passport = require('passport')
 const Strategy = require('passport-jwt').Strategy
 const ExtractJwt = require('passport-jwt').ExtractJwt
 const jwt = require('jsonwebtoken')
 const bcrypt = require('bcrypt')
+const db = require('../models')
 
 const options = {
     secretOrKey: 'some string value only your app knows',
@@ -557,7 +563,7 @@ const options = {
 }
 
 const findUser = (jwt_payload, done) => {
-    User.findById(jwt_payload.id)
+    db.User.findById(jwt_payload.id)
       .then(foundUser => done(null, user))
       .catch(err => done(err))
 }
@@ -576,7 +582,11 @@ const createUserToken = (req, user) => {
         err.statusCode = 422
         throw err
     } else { 
-        return jwt.sign({ id: user._id }, 'some string value only your app knows', {expiresIn: 3600})
+        return jwt.sign(
+          { id: user._id },  
+          'some string value only your app knows', 
+          {expiresIn: 3600}
+        )
     }
 }
 
@@ -589,34 +599,36 @@ module.exports = { createUserToken }
 const { createUserToken } = require('../middleware/auth')
 ```
 
-1. Update signup route to send back token instead of the user:
+2. Update signup route to send back token instead of the user:
 ```js
 router.post('/signup', (req, res, next) => {
   bcrypt.hash(req.body.password, 10)
-  .then(hash => ({email: req.body.email, password : hash }))
-  .then(hashedUser => User.create(hashedUser))
-//.then(createdUser => res.status(201).json(createdUser))
-  .then(createdUser => createUserToken(req, createdUser))
-  .then(token => res.json({token}))
-  .catch(err => console.log('ERROR CREATING USER:', ERR))
+  .then(hash => db.User.create({email: req.body.email, password : hash }))
+  .then(createdUser => res.json({ token: createUserToken(req, createdUser) }))
+  .catch(err => {
+    console.log(err)
+    res.json({'error': err})
+  })
 })
 ```
 
-1. Finish login route:
+3. Finish login route:
 ```js
 // POST /api/login
 router.post('/login', (req, res)=>{
-  User.findOne({email: req.body.email})
-  .then(foundUser=>createUserToken(req, foundUser))
-  .then(token=>res.json({token}))
-  .catch(err=>console.log('ERROR LOGGING IN:', err))
+  db.User.findOne({ email: req.body.email })
+  .then(foundUser => res.status(200).json({ token: createUserToken(req, foundUser) }))
+  .catch(err=> {
+    console.log('ERROR LOGGING IN:', err)
+    res.json({ 'error': err})
+  })
 })
 ```
 Now use Insomnia to try out both of these routes. You should get a token as the response!
 
 Head over to [jwt.io](https://jwt.io/) to see your token decoded and you can read about the anatomy of a JSON Web Token [here](https://scotch.io/tutorials/the-anatomy-of-a-json-web-token).
 
-1. Now that we know everything is working right, let's move our secret to our `.env` and make it an environment variable called `JWT_SECRET`.
+4. Now that we know everything is working right, let's move our secret to our `.env` and make it an environment variable called `JWT_SECRET`.
 
 ```
 JWT_SECRET=some string value only your app knows
@@ -638,18 +650,16 @@ Another issue is that we're not setting the status codes on our responses, so ev
 ```js
 router.post('/signup', (req, res, next) => {
   bcrypt.hash(req.body.password, 10)
-  .then(hash => ({email: req.body.email, password : hash }))
-  .then(hashedUser => User.create(hashedUser))
-  .then(createdUser => createUserToken(req, createdUser))
-  .then(token => res.status(201).json({token}))
-  .catch(err=>{console.log('ERROR CREATING USER:', err)})
+  .then(hash => db.User.create({email: req.body.email, password : hash }))
+  .then(createdUser => res.status(201).json({ token: createUserToken(req, createdUser) }))
+  .catch(err => {
+    console.log(err)
+    res.json({'error': err})
+  })
 })
 ```
 
-
----
->>>>>>>>>>>>>>>>>>>>>>>>>>BELOW THIS LINE IS DRAFT<<<<<<<<<<<<<<<<<<<<<<<<<<
----
+> What status code would you add to the catch clause?
 
 
 ## Add Authorization
