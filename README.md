@@ -70,12 +70,14 @@ First, let's set our app up to use Atlas instead of our local mongo database.
 const mongoose = require('mongoose');
 const MONGODB_URI = `<put your connection string here>`
 
-mongoose
-  .connect(MONGODB_URI)
-  .then(instance =>
-    console.log(`🔗 Connected to db: ${instance.connections[0].name}`)
-  )
-  .catch((error) => console.log('💩 Connection failed!', error));
+mongoose.connect(MONGODB_URI)
+
+mongoose.connection.once('open', () =>
+  console.log(`🔗 Connected to db: ${mongoose.connection.name}`)
+)
+mongoose.connection.on('error', err => 
+  console.log('🔥 Connection failed!', err)
+)
 
 module.exports = mongoose;
 ```
@@ -217,21 +219,48 @@ const userSchema = new mongoose.Schema({
 
 module.exports = mongoose.model('User', userSchema);
 ```
+3. Add it to your `index.js` file as an export!
+
+```js
+require('dotenv').config();
+const mongoose = require('mongoose');
+require('dotenv').config();
+const mongoose = require('mongoose');
+
+mongoose.connect(process.env.MONGODB_URI, {
+  useNewUrlParser: true,
+  useCreateIndex: true,
+  useUnifiedTopology: true,
+  useFindAndModify: false
+})
+
+mongoose.connection.once('open', () =>
+  console.log(`🔗 Connected to db: ${mongoose.connection.name}`)
+)
+
+mongoose.connection.on('error', err => 
+  console.log('🔥 Connection failed!', err)
+)
+
+module.exports.User = require('./user');
+
+```
 
 ### Test User Model
 
-Create a `db/userTest.js` file and import the user model. Add mongoose code to create a new user ([mongoose docs for inserting](https://mongoosejs.com/docs/models.html#compiling)):
+Create a `models/userTest.js` file and import the user model. Add mongoose code to create a new user ([mongoose docs for inserting](https://mongoosejs.com/docs/models.html#compiling)):
 
 ```js
-const User = require('../models/User')
+const db = require('./index');
 
-User.create({
+db.User.create({
     email: 'test@test.com',
     password: 'testpassword'
 }, (err, createdUser) => {
     if (err) console.log('Error added test user', err)
     else console.log('success!', createdUser)
-})
+    process.exit()
+});
 ```
 Run `node db/userTest.js` and check that the test user was added successfully (you'll see the console log if it did, but also look in your collection on Atlas)!
 
@@ -281,14 +310,14 @@ app.use('/api', require('./controllers/users'))
 
 Test that these routes are being hit via Insomnia!
 
-3. Import the `User` model into your users controller
-`const User = require('../models/User')`
+3. Import the `User` model into your users controller via the `index.js`
+`const db = require('../models')`
 
 4. Add create to the signup controller:
 
 ```js
 router.post('/signup', (req, res, next) => {
-  User.create(req.body)
+  db.User.create(req.body)
     .then((createdUser) => res.send(createdUser))
     .catch(err=>{
       console.log('Oops, there was an error creating the user!')
@@ -361,8 +390,7 @@ const bcrypt = require('bcrypt');
 //Using promise chain
 router.post('/signup', (req, res) => {
   bcrypt.hash(req.body.password, 10)
-  .then(hash => ({email: req.body.email, password : hash }))
-  .then(hashedUser => User.create(hashedUser))
+  .then(hash => db.User.create({email: req.body.email, password : hash }))
   .then(createdUser => res.json(createdUser))
   .catch(err => {
     console.log(err)
@@ -370,7 +398,7 @@ router.post('/signup', (req, res) => {
 })
 ```
 
-Create a new user with a different email address in Postman. If you look in Mongo, you should see that the password is now hashed and looks something like this:
+Create a new user with a different email address in Insomnia. If you look in Mongo, you should see that the password is now hashed and looks something like this:
 
 ```json
 "password" : "$2b$10$5g62t1K7SUovJ2.XonHfy.kiDWQr/UEpR1ha8DSwAWWpBob5WXAKy"
