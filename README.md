@@ -392,9 +392,7 @@ router.post('/signup', (req, res) => {
   bcrypt.hash(req.body.password, 10)
   .then(hash => db.User.create({email: req.body.email, password : hash }))
   .then(createdUser => res.json(createdUser))
-  .catch(err => {
-    console.log(err)
-  })
+  .catch(err => {console.log('ERROR CREATING USER:', ERR)})
 })
 ```
 
@@ -542,7 +540,12 @@ const createUserToken = (req, user) => {
         err.statusCode = 422
         throw err
     } else { // otherwise create and sign a new token
-        return jwt.sign({ id: user._id }, 'some string value only your app knows', {expiresIn: 3600})
+        const payload = {
+            id: user._id,
+            email: user.email,
+            motto: user.motto
+        }
+        return jwt.sign(payload, process.env.JWT_SECRET, {expiresIn: 3600})
     }
 }
 ```
@@ -661,61 +664,75 @@ router.post('/signup', (req, res, next) => {
 
 > What status code would you add to the catch clause?
 
-
 ## Add Authorization
 
 Along with authenticating the user, we now have to handle user authorization. What's the difference? When the user logs into the system successfully, we _authenticate_ them based on the credentials they send (such as a proper combination of email and password). Authorization means determining whether the user is actually authorized to perform some action in the system.
 
-With the token, we can determine which user is making a request. With that information, we can determine if the specific user making the request is _authorized_ to carry out a specific action, such as create documents or delete or update a specific document.
+Let's add a dummy route to our API to see how to protect a route:
 
-## Setup Postman to Run Tests Sequentially
-
-Postman actually contains a ton of helpful features for running API tests. One feature that can be particularly helpful is the ability to set up an environment for your API that stores variables. Even better, we can automatically update the variables when we receive a response from the server. This is especially helpful when you're dealing with requests that are dependent upon data other requests. For example, we now have to set that long-ass token into the Authorization header of everyone of our POST, DELETE and PUT routes for our job resource, and since the token expires after some time, we’ll have to do it regularly.
-
-### Create Environment Variables
-
-1. Open Postman.
-1. Click on the gear icon (:gear:) on the top right side of the window just below the taskbar.
-1. When the Manage Environments modal appears, click the orange Add button at the bottom of the modal.
-1. Give your environment a descriptive name such as **Job Board API**.
-1. For the first variable, name it `url` and set the **initial value** and **current value** column to: `http://localhost:8000/api`.
-
-1. Add a second variable named `id` and set its initial value to an empty string (`''`).
-1. Add a third variable named `token` and also set its initial value to an empty string (`''`).
-1. Click the orange Add button on this screen and then close the modal by clicking the x in the upper right corner.
-1. In the environments dropdown selection list choose your new **Job Board API** environment.
-
-### Add Test Script to the Signin Request
-
-Now you can update your `/signin` request in Postman. Instead of manually having to copy and paste the token to each of our resource request in Postman, we can have Postman automatically run some code when the response to our signin request is received and set the token in the variable we created.
-
-1. Open the signin request you created earlier in Postman.
-1. In the toolbar below the request URL input field, click the **Tests** tab and add the following code:
+Add the following route to your users controller:
 
 ```js
-var data = pm.response.json();
-pm.environment.set('token', data.token);
+// PRIVATE
+// GET /api/private
+router.get('/private', (req, res)=>{
+    return res.json({"message": "thou hath been granted permission to access this route!"})
+})
 ```
 
-Click the blue Send button and then click the eyeball icon next to the environments dropdown. You should now see the **token** variable is set. :tada:
+Try hitting this route in postman. No problem, right? Wrong! This means any joe blow could hit this route, logged in or not! Let's add the the passport middleware that allows us to authenticate the user based on the token sent by the client.
 
-### Set the Authorization Header in the Jobs Post Request
+1. Start by importing Passport at the top:
+```js
+const passport = require('passport')
+```
 
-With the token stored in a variable, it’s easy for us to add it to our authenticated requests.
+1. Then add the `passport.authenticate` middleware to the route:
 
-1. Open the request you created for the post to the `/jobs` route.
+```js
+// PRIVATE
+// GET /api/private
+// this is an example of a protected route
+// the client must send a valid token to get 
+// the response from this route
+router.get('/private', passport.authenticate('jwt', {session: false}), (req, res)=>{
+    return res.json({"message": "thou hath been granted permission to access this route!"})
+})
+```
+
+Now try to hit the route in postman - what happens? You're not authorized!
+
+1. You will likely have several routes that need this middelware, so let's make writing it out a little more concise. Store this method in a variable called `requireToken` at the bottom of `auth.js` and add it to the export:
+
+```js
+// Create a variable that holds the authenticate method so we can
+// export it for use in our routes
+const requireToken = passport.authenticate('jwt', {session: false})
+
+module.exports = { createUserToken, requireToken }
+```
+
+1. Now just add `requireToken` to the import at the top of the user controller, and replace it in the route arguments:
+
+```js
+...
+const { createUserToken, requireToken } = require('../middleware/auth')
+...
+router.get('/private', requireToken, (req, res)=>{
+    return res.json({"message": "thou hath been granted permission to access this route!"})
+})
+```
+
+### Set the Authorization Header in the Request
+
+1. Log in or sign up a user and copy the token string
+1. Open the request you created for the post to the `/api/private` route.
 1. In the toolbar below the request URL input field, click the **Headers** tab.
-1. Add a header with `Authorization` set for the key and `Bearer {{token}}` set for the value.
-1. Back in the toolbar, click the **Tests** tab and add the following code:
+1. Add a header with `Authorization` set for the key and `Bearer <token no quotes or brackets>` set for the value.
 
-```js
-var data = pm.response.json();
-pm.environment.set('id', data._id);
-```
+With the token, we can determine which user is making a request. With that information, we can determine if the specific user making the request is _authorized_ to carry out a specific action, such as create documents or delete or update a specific document. What sorts of routes will you want to protect in your Project 3?
 
-Make sure youʼve still got JSON data set in the **Body** tab and click the blue Send button. Assuming that all went well, you should see the newly created job in the response window. You'll also have an id for the newly created job that you can easily use in your DELETE and PUT requests by changing the url on the requests to: `{{url}}/jobs/{{id}}`... How awesome is that!
-
-## Handle Authentication in React
+## Handling Authentication in React
 
 In terms of making the Fetch or Axios requests to the API in React, you'll now have to add the `Authorization` header to authenticated requests, such as:
 
@@ -745,10 +762,6 @@ One approach to handling the token is to use React's built in Context API to sto
 Alternatively, you can create state to hold your user in the App.js, along with a method to set the user state and pass that as a prop to your signin form's `handleSubmit` method. When the AJAX call to your server is successful and you get the token back from the API, you can call the method that sets the token in state in App. Now you can pass the token to all of the components that need it as props.
 
 There are also third party state management tools that could be used to store the token. They range from very basic ([`react-hooks-global-state`](https://www.npmjs.com/package/use-global-state)) to complex ([Redux](https://redux.js.org/)).
-
-## Test Authenticated Routes
-
-To write tests for authenticated routes, you'll need to use the [before or beforeEach hooks](https://mochajs.org/#hooks) in Mocha to generate a user token. You may find that using the async/await syntax is more straightforward here than using promise chains, but both will work. You can also use superagent as described in this [article](https://codeburst.io/authenticated-testing-with-mocha-and-chai-7277c47020b7).
 
 ---
 

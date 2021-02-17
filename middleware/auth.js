@@ -3,6 +3,7 @@ const Strategy = require('passport-jwt').Strategy
 const ExtractJwt = require('passport-jwt').ExtractJwt
 const jwt = require('jsonwebtoken')
 const bcrypt = require('bcrypt')
+const User = require('../models/User')
 
 const options = {
     secretOrKey: process.env.JWT_SECRET,
@@ -14,7 +15,7 @@ const options = {
 
 const findUser = (jwt_payload, done) => {
     User.findById(jwt_payload.id)
-      .then(foundUser => done(null, user))
+      .then(foundUser => done(null, foundUser))
       .catch(err => done(err))
 }
 
@@ -46,8 +47,17 @@ const createUserToken = (req, user) => {
         err.statusCode = 422
         throw err
     } else { // otherwise create and sign a new token
-        return jwt.sign({ id: user._id }, process.env.JWT_SECRET, {expiresIn: 3600})
+        const payload = {
+            id: user._id,
+            email: user.email,
+            motto: user.motto
+        }
+        return jwt.sign(payload, process.env.JWT_SECRET, {expiresIn: 3600})
     }
 }
 
-module.exports = { createUserToken }
+// Create a variable that holds the authenticate method so we can
+// export it for use in our routes
+const requireToken = passport.authenticate('jwt', {session: false})
+
+module.exports = { createUserToken, requireToken }
