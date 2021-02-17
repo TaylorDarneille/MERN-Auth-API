@@ -14,7 +14,7 @@ First let's quickly set up a basic project environment.
 1. Run `git init` to initialize the repository for Git.
 1. Create a `.gitignore` and add the node_modules directory to it with `echo node_modules > .gitignore`
 1. Creat a `.env` file with `touch .env`
-1. Create an `index.js` file with `touch index.js`.
+1. Create an entry point (or main file) with `touch server.js`.
 1. Create some directories inside your project to organize your code with `mkdir models db controllers middleware`.
 1. Run `npm init -y` to initialize the repository for npm.
 1. Install dependencies with `npm i express cors mongoose dotenv`.
@@ -27,8 +27,7 @@ MERN-AUTH-API
     ├── index.js
     ├── controllers
     ├── middleware
-    ├── models
-    └── db
+    └── models
 ```
 <!-- INIT_DIRECTORY_DIAGRAM - START -->
 <!-- prettier-ignore-end -->
@@ -65,25 +64,27 @@ First, let's set our app up to use Atlas instead of our local mongo database.
 
 ### Connect to MongoDB
 
-1. Create a file in the `db` directory called `connection.js` and add the following code:
+1. Create a file in the `models` directory called `index.js` and add the following code:
 
 ```js
 const mongoose = require('mongoose');
-const DB_CONNECTION_STRING = `<put your connection string here>`
+const MONGODB_URI = `<put your connection string here>`
 
-mongoose
-  .connect()
-  .then((DB_CONNECTION_STRING) =>
-    console.log(`Connected to db: ${instance.connections[0].name}`)
-  )
-  .catch((error) => console.log('Connection failed!', error));
+mongoose.connect(MONGODB_URI)
+
+mongoose.connection.once('open', () =>
+  console.log(`🔗 Connected to db: ${mongoose.connection.name}`)
+)
+mongoose.connection.on('error', err => 
+  console.log('🔥 Connection failed!', err)
+)
 
 module.exports = mongoose;
 ```
 
 Make sure to add a db username and password and name to the appropriate parts of the connection string. For example: `mongodb+srv://sei:seisei@sei-mern-auth.a0ell.mongodb.net/SEI-MERN-Auth?retryWrites=true&w=majority`
 
-2.Back in the Terminal make sure you're in the `MERN-AUTH-API` directory and run the file to test your connection using NodeJS with `node db/connection.js`. If you get a `Connection failed` error or do not see `Connected to db: job-board`, [check and make sure that your MongoDB server is running](https://git.generalassemb.ly/seir-129/mongo-install-homework). Otherwise, you should see output similar to the following:
+2.Back in the Terminal make sure you're in the `MERN-AUTH-API` directory and run the file to test your connection using NodeJS with `node models/index.js`. If you get a `Connection failed` error or do not see `Connected to db: job-board`, [check and make sure that your MongoDB server is running](https://git.generalassemb.ly/seir-129/mongo-install-homework). Otherwise, you should see output similar to the following:
 
 ```bash
 (node:48059) DeprecationWarning: current URL string parser is deprecated, and will be removed
@@ -107,13 +108,13 @@ mongoose
   ...
 ```
 
-4. Back in the Terminal, type `control + C` to stop the process that's running and return to the command prompt. Now, try running the connection.js file again with `node db/connection.js`. This time you should only see the connection message.
+4. Back in the Terminal, type `control + C` to stop the process that's running and return to the command prompt. Now, try running the `index.js` file again with `node models/index.js`. This time you should only see the connection message.
 
 5. Great! But, we know that this API isn't always going to be run on our Atlas cluster, so we should use an environment variable for the connection string. 
 
-* Move your connection string to be an environment variable by putting it in your `.env` file, then import and configure `dotenv` at the top of `db/connection.js`.
+* Move your connection string to be an environment variable by putting it in your `.env` file, then import and configure `dotenv` at the top of `models/index.js`.
 
-* You'll also need to change the `connect` argument to include the `process.env.DB_CONNECTION_STRING`. 
+* You'll also need to change the `connect` argument to include the `process.env.MONGODB_URI`. 
 
 6. Finally, export your connected mongoose instance for use in other files by adding `module.exports = mongoose`
 
@@ -127,7 +128,7 @@ const mongoose = require('mongoose');
 
 // Use Mongoose's connect method to connect to MongoDB by passing it the db URI.
 // Pass a second argument which is an object with the options for the connection.
-mongoose.connect(process.env.DB_CONNECTION_STRING, {
+mongoose.connect(process.env.MONGODB_URI, {
     useNewUrlParser: true,
     useCreateIndex: true,
     useUnifiedTopology: true,
@@ -141,7 +142,7 @@ mongoose.connect(process.env.DB_CONNECTION_STRING, {
   // the Terminal.
   .catch(error => console.log('Connection failed!', error));
 
-// Export the connection so we can use it elsewhere in our app.
+// Export the connection so we can use it elsewhere in our app, we will change this eventually
 module.exports = mongoose;
 ```
 
@@ -149,7 +150,7 @@ module.exports = mongoose;
 
 ### Setup a Server
 
-1. In the `index.js` file lets create a basic Express server and get it running. We need to require Express and store it in a variable called `express`. Then we'll invoke express to instantiate the Express application object and store that in a variable called `app`. Finally, we'll listen on port 8000 for requests and add a callback so we know its running. The basic server looks like this:
+1. In the `server.js` file lets create a basic Express server and get it running. We need to require Express and store it in a variable called `express`. Then we'll invoke express to instantiate the Express application object and store that in a variable called `app`. Finally, we'll listen on port 8000 for requests and add a callback so we know its running. The basic server looks like this:
 
 ```js
 const express = require('express');
@@ -163,15 +164,15 @@ app.listen(8000, () => {
 2. Use `nodemon` to run the server.
 
 3. This server doesn't do anything at all, so lets build it out a bit more. We know we'll be adding our routes in here so let's require `mongoose` and while we're at it import the [cors package](https://www.npmjs.com/package/cors) and set up the middleware. Remember, to use a middleware in Express we need to pass it to the `app.use()` method.
-1. We're also going to have to use two of the built-in middleware packages since we're going to be making requests via AJAX to the server, so add `app.use(express.json())` and `app.use(express.urlencoded({ extended: true }))`.
-1. Lastly, again, we know that eventually we'll be running this on a remote server, so lets create a PORT environment variable. We can assign the variable the value of the PORT environment variable that will be set in Heroku OR if that environment variable doesn't exist, it should use 8000.
+4. We're also going to have to use two of the built-in middleware packages since we're going to be making requests via AJAX to the server, so add `app.use(express.json())` and `app.use(express.urlencoded({ extended: true }))`.
+5. Lastly, again, we know that eventually we'll be running this on a remote server, so lets create a PORT environment variable. We can assign the variable the value of the PORT environment variable that will be set in Heroku OR if that environment variable doesn't exist, it should use 8000.
 
 The completed file should look like this when done:
 
 ```js
 // Require necessary NPM packages
 const express = require('express');
-const mongoose = require('mongoose');
+const mongoose = require('./models');
 const cors = require('cors');
 
 // Instantiate express application object
@@ -186,20 +187,21 @@ app.use(cors());
 // The urlencoded middleware parses requests which use
 // a specific content type (such as when using Axios)
 app.use(express.urlencoded({ extended: true }))
+app.use(express.json())
 
 // Run server on designated port
 app.listen(process.env.PORT || 8000, () => {
-  console.log('SEI MERN AUTH API running')
+  console.log(`🎧 You're listening to the sounds of Port ${process.env.PORT || 8000} 🎧`)
 })
 ```
 
 ### Create the User Model
 
-1. Create a new file in the `models` directory called `User.js`.
-1. Create a basic user model. To keep things simple, our model is going to be super streamlined with just `email` and `password` fields. We'll also add a timestamp [option](https://mongoosejs.com/docs/guide.html#options) so we automatically get the `createdAt` and `updatedAt` fields.
+1. Create a new file in the `models` directory called `user.js`.
+2. Create a basic user model. To keep things simple, our model is going to be super streamlined with just `email` and `password` fields. We'll also add a timestamp [option](https://mongoosejs.com/docs/guide.html#options) so we automatically get the `createdAt` and `updatedAt` fields.
 
 ```js
-const mongoose = require('../db/connection');
+const mongoose = require('mongoose');
 const options = {
   timestamps: true
 }
@@ -217,21 +219,48 @@ const userSchema = new mongoose.Schema({
 
 module.exports = mongoose.model('User', userSchema);
 ```
+3. Add it to your `index.js` file as an export!
+
+```js
+require('dotenv').config();
+const mongoose = require('mongoose');
+require('dotenv').config();
+const mongoose = require('mongoose');
+
+mongoose.connect(process.env.MONGODB_URI, {
+  useNewUrlParser: true,
+  useCreateIndex: true,
+  useUnifiedTopology: true,
+  useFindAndModify: false
+})
+
+mongoose.connection.once('open', () =>
+  console.log(`🔗 Connected to db: ${mongoose.connection.name}`)
+)
+
+mongoose.connection.on('error', err => 
+  console.log('🔥 Connection failed!', err)
+)
+
+module.exports.User = require('./user');
+
+```
 
 ### Test User Model
 
-Create a `db/userTest.js` file and import the user model. Add mongoose code to create a new user ([mongoose docs for inserting](https://mongoosejs.com/docs/models.html#compiling)):
+Create a `models/userTest.js` file and import the user model. Add mongoose code to create a new user ([mongoose docs for inserting](https://mongoosejs.com/docs/models.html#compiling)):
 
 ```js
-const User = require('../models/User')
+const db = require('./index');
 
-User.create({
+db.User.create({
     email: 'test@test.com',
     password: 'testpassword'
 }, (err, createdUser) => {
     if (err) console.log('Error added test user', err)
     else console.log('success!', createdUser)
-})
+    process.exit()
+});
 ```
 Run `node db/userTest.js` and check that the test user was added successfully (you'll see the console log if it did, but also look in your collection on Atlas)!
 
@@ -249,7 +278,7 @@ const router = express.Router();
 module.exports = router;
 ```
 
-You'll also need to write the controller middleware for users in `index.js`:
+You'll also need to write the controller middleware for users in `server.js`:
 
 
 
@@ -272,23 +301,23 @@ router.post('/login', (req, res) => {
 })
 ```
 
-Import the user controllers to `index.js` underneath any other middleware you have:
+Import the user controllers to `server.js` underneath any other middleware you have:
 
 ```js
 // Import the user resource actions
 app.use('/api', require('./controllers/users'))
 ```
 
-Test that these routes are being hit via Postman!
+Test that these routes are being hit via Insomnia!
 
-3. Import the `User` model into your users controller
-`const User = require('../models/User')`
+3. Import the `User` model into your users controller via the `index.js`
+`const db = require('../models')`
 
 4. Add create to the signup controller:
 
 ```js
 router.post('/signup', (req, res, next) => {
-  User.create(req.body)
+  db.User.create(req.body)
     .then((createdUser) => res.send(createdUser))
     .catch(err=>{
       console.log('Oops, there was an error creating the user!')
@@ -296,7 +325,7 @@ router.post('/signup', (req, res, next) => {
 })
 ```
 
-Use Postman to sign up a new user!
+Use Insomnia to sign up a new user!
 
 5. We're building an API that will send data in JSON format, so let's be legit and use the [JSON response method](http://expressjs.com/en/api.html#res.json) provided by express. 
 
@@ -341,7 +370,7 @@ const options = {
 }
 ```
 
-Create a new user in Postman. :tada: No more password being sent! However, it seems we introduced another issue. Now, we have both an `_id` and an `id` field. Technically, this additional `id` field is just a virtual because we used a toJSON virtual. You can verify that itʼs not storing the value in MongoDB separately. If it bugs you, you can add `id: false` as a key/value pair in the options object that has the `timestamps` and `toJSON` properties.
+Create a new user in Insomnia. :tada: No more password being sent! However, it seems we introduced another issue. Now, we have both an `_id` and an `id` field. Technically, this additional `id` field is just a virtual because we used a toJSON virtual. You can verify that itʼs not storing the value in MongoDB separately. If it bugs you, you can add `id: false` as a key/value pair in the options object that has the `timestamps` and `toJSON` properties.
 
 ### Store a Hashed Password
 
@@ -361,14 +390,15 @@ const bcrypt = require('bcrypt');
 //Using promise chain
 router.post('/signup', (req, res) => {
   bcrypt.hash(req.body.password, 10)
-  .then(hash => ({email: req.body.email, password : hash }))
-  .then(hashedUser => User.create(hashedUser))
+  .then(hash => db.User.create({email: req.body.email, password : hash }))
   .then(createdUser => res.json(createdUser))
-  .catch(err => {console.log('ERROR CREATING USER:', ERR)})
+  .catch(err => {
+    console.log(err)
+  })
 })
 ```
 
-Create a new user with a different email address in Postman. If you look in Mongo, you should see that the password is now hashed and looks something like this:
+Create a new user with a different email address in Insomnia. If you look in Mongo, you should see that the password is now hashed and looks something like this:
 
 ```json
 "password" : "$2b$10$5g62t1K7SUovJ2.XonHfy.kiDWQr/UEpR1ha8DSwAWWpBob5WXAKy"
@@ -388,11 +418,11 @@ Each Passport strategy has to be configured for your specific app. Basically, Pa
 Once initialized, weʼll run the passport strategy as route middleware. When run as middleware, Passport receives the request, extracts the user information from the token, then attaches the user info back to the request object so it is accessible by whatever action (route) it hits.
 
 1. Create a new file in the `middleware` directory called `auth.js`.
-1. Install passport
+2. Install passport
 ```bash
 npm i passport
 ```
-1. import it into `auth.js`. Stub out the generic passport structure:
+3. import it into `auth.js`. Stub out the generic passport structure:
 
 ```js
 const passport = require('passport')
@@ -409,11 +439,11 @@ passport.use(strategy)
 passport.initialize()
 ```
 
-1. Install passport's [JWT strategy](http://www.passportjs.org/packages/passport-jwt/)
+4. Install passport's [JWT strategy](http://www.passportjs.org/packages/passport-jwt/)
 ```bash
 npm i passport-jwt
 ```
-1. import the `Strategy` constructor from `passport-jwt and construct the strategy:
+5. import the `Strategy` constructor from `passport-jwt and construct the strategy:
 ```js
 const passport = require('passport')
 const Strategy = require('passport-jwt').Strategy
@@ -423,7 +453,7 @@ const strategy = new Strategy(options, findUser)
 
 ...
 ```
-1. Create an `options` object that we'll pass into the `Strategy` constructor.
+6. Create an `options` object that we'll pass into the `Strategy` constructor.
 ```js
 const Strategy = require('passport-jwt').Strategy
 
@@ -432,7 +462,7 @@ const options = {}
 // construct the strategy (will define options and findUser soon)
 const strategy = new Strategy(options, findUser)
 ```
-1. The options object requires a `secretOrKey` field
+7. The options object requires a `secretOrKey` field
 
 ```js
 const Strategy = require('passport-jwt').Strategy
@@ -444,7 +474,10 @@ const options = {
 // construct the strategy (will define options and findUser soon)
 const strategy = new Strategy(options, findUser)
 ```
-1. The other required option field is `jwtFromRequest`. This has to be a function that accepts the request object as the only parameter and returns either the JWT as a string or null. This is called an *extractor function* because extracts and deserializes the JWT from the request object. Passport provides several built-in extractor functions and we will use `fromAuthHeaderAsBearerToken()`, which looks for the JWT in the authorization header with the scheme 'bearer'. Visit the passport docs on [extracting the JWT from the request](http://www.passportjs.org/packages/passport-jwt/#extracting-the-jwt-from-the-request) for more details.
+> Because this is a secret string, it should be stored in an `.env` file. We will do this later
+
+
+8. The other required option field is `jwtFromRequest`. This has to be a function that accepts the request object as the only parameter and returns either the JWT as a string or null. This is called an *extractor function* because extracts and deserializes the JWT from the request object. Passport provides several built-in extractor functions and we will use `fromAuthHeaderAsBearerToken()`, which looks for the JWT in the authorization header with the scheme 'bearer'. Visit the passport docs on [extracting the JWT from the request](http://www.passportjs.org/packages/passport-jwt/#extracting-the-jwt-from-the-request) for more details.
 
 ```js
 const Strategy = require('passport-jwt').Strategy
@@ -457,19 +490,21 @@ const options = {
 }
 ```
 
-1. Now we need to write the verification callback that gets passed as the second argument to the `Strategy` constructor. This callback is where we write custom code to go get the user's info from the database based on the token info. It will receive two arguments automatically:
+9. Now we need to write the verification callback that gets passed as the second argument to the `Strategy` constructor. This callback is where we write custom code to go get the user's info from the database based on the token info. It will receive two arguments automatically:
 * The deserialized JWT payload that has been extracted from the request object, which will contain the user's id
 * A `done` callback that is ready to receive the user object and pass it onto our routes. It takes any errors that happen along the way as the first argument, and the user object as the second.
 
-```js
-const findUser = (jwt_payload, done) {
-  User.findById(jwt_payload.id)
-    .then(foundUser => done(null, user))
+```javascript
+const db = require('../models')
+
+const findUser = (jwt_payload, done) => {
+  db.User.findById(jwt_payload.id)
+    .then(foundUser => done(null, foundUser))
     .catch(err => done(err))
 }
 ```
 
-1. Each time the user logs in, we'll need to create a token for them. We will create a function that uses the [jsonwebtoken](https://www.npmjs.com/package/jsonwebtoken) `.sign` method to turn the user id and secret into a JWT using the RSA SHA256 algorithm. RSA SHA256 will first hash the user id and the secret using the SHA256 algorithm, then encrypt that hash using the RSA algorithm.
+10. Each time the user logs in, we'll need to create a token for them. We will create a function that uses the [jsonwebtoken](https://www.npmjs.com/package/jsonwebtoken) `.sign` method to turn the user id and secret into a JWT using the RSA SHA256 algorithm. RSA SHA256 will first hash the user id and the secret using the SHA256 algorithm, then encrypt that hash using the RSA algorithm.
 
  First install the package and import it into the `auth.js` file:
 ```bash
@@ -479,9 +514,9 @@ npm install jsonwebtoken
 const jwt = require('jsonwebtoken')
 ```
 
-1. Now we import bcrypt and write the function to be exported:
+11. Now we import bcrypt and write the function to be exported:
 
-```js
+```javascript
 ...
 const bcrypt = require('bcrypt')
 ...
@@ -507,24 +542,20 @@ const createUserToken = (req, user) => {
         err.statusCode = 422
         throw err
     } else { // otherwise create and sign a new token
-        const payload = {
-            id: user._id,
-            email: user.email,
-            motto: user.motto
-        }
-        return jwt.sign(payload, process.env.JWT_SECRET, {expiresIn: 3600})
+        return jwt.sign({ id: user._id }, 'some string value only your app knows', {expiresIn: 3600})
     }
 }
 ```
 
-1. Now export `createUserToken` at the bottom of `auth.js` so we can use it in our `/api/login` route. So far, your `auth.js` should look like this:
+12. Now export `createUserToken` at the bottom of `auth.js` so we can use it in our `/api/login` route. So far, your `auth.js` should look like this:
 
-```js
+```javascript
 const passport = require('passport')
 const Strategy = require('passport-jwt').Strategy
 const ExtractJwt = require('passport-jwt').ExtractJwt
 const jwt = require('jsonwebtoken')
 const bcrypt = require('bcrypt')
+const db = require('../models')
 
 const options = {
     secretOrKey: 'some string value only your app knows',
@@ -532,7 +563,7 @@ const options = {
 }
 
 const findUser = (jwt_payload, done) => {
-    User.findById(jwt_payload.id)
+    db.User.findById(jwt_payload.id)
       .then(foundUser => done(null, user))
       .catch(err => done(err))
 }
@@ -551,7 +582,11 @@ const createUserToken = (req, user) => {
         err.statusCode = 422
         throw err
     } else { 
-        return jwt.sign({ id: user._id }, 'some string value only your app knows', {expiresIn: 3600})
+        return jwt.sign(
+          { id: user._id },  
+          'some string value only your app knows', 
+          {expiresIn: 3600}
+        )
     }
 }
 
@@ -564,34 +599,36 @@ module.exports = { createUserToken }
 const { createUserToken } = require('../middleware/auth')
 ```
 
-1. Update signup route to send back token instead of the user:
+2. Update signup route to send back token instead of the user:
 ```js
 router.post('/signup', (req, res, next) => {
   bcrypt.hash(req.body.password, 10)
-  .then(hash => ({email: req.body.email, password : hash }))
-  .then(hashedUser => User.create(hashedUser))
-//.then(createdUser => res.status(201).json(createdUser))
-  .then(createdUser => createUserToken(req, createdUser))
-  .then(token => res.json({token}))
-  .catch(err => {console.log('ERROR CREATING USER:', ERR)})
+  .then(hash => db.User.create({email: req.body.email, password : hash }))
+  .then(createdUser => res.json({ token: createUserToken(req, createdUser) }))
+  .catch(err => {
+    console.log(err)
+    res.json({'error': err})
+  })
 })
 ```
 
-1. Finish login route:
+3. Finish login route:
 ```js
 // POST /api/login
 router.post('/login', (req, res)=>{
-  User.findOne({email: req.body.email})
-  .then(foundUser=>createUserToken(req, foundUser))
-  .then(token=>res.json({token}))
-  .catch(err=>console.log('ERROR LOGGING IN:', err))
+  db.User.findOne({ email: req.body.email })
+  .then(foundUser => res.status(200).json({ token: createUserToken(req, foundUser) }))
+  .catch(err=> {
+    console.log('ERROR LOGGING IN:', err)
+    res.json({ 'error': err})
+  })
 })
 ```
-Now use Postman to try out both of these routes. You should get a token as the response!
+Now use Insomnia to try out both of these routes. You should get a token as the response!
 
 Head over to [jwt.io](https://jwt.io/) to see your token decoded and you can read about the anatomy of a JSON Web Token [here](https://scotch.io/tutorials/the-anatomy-of-a-json-web-token).
 
-1. Now that we know everything is working right, let's move our secret to our `.env` and make it an environment variable called `JWT_SECRET`.
+4. Now that we know everything is working right, let's move our secret to our `.env` and make it an environment variable called `JWT_SECRET`.
 
 ```
 JWT_SECRET=some string value only your app knows
@@ -613,83 +650,79 @@ Another issue is that we're not setting the status codes on our responses, so ev
 ```js
 router.post('/signup', (req, res, next) => {
   bcrypt.hash(req.body.password, 10)
-  .then(hash => ({email: req.body.email, password : hash }))
-  .then(hashedUser => User.create(hashedUser))
-  .then(createdUser => createUserToken(req, createdUser))
-  .then(token => res.status(201).json({token}))
-  .catch(err=>{{console.log('ERROR CREATING USER:', err)}})
+  .then(hash => db.User.create({email: req.body.email, password : hash }))
+  .then(createdUser => res.status(201).json({ token: createUserToken(req, createdUser) }))
+  .catch(err => {
+    console.log(err)
+    res.json({'error': err})
+  })
 })
 ```
+
+> What status code would you add to the catch clause?
+
 
 ## Add Authorization
 
 Along with authenticating the user, we now have to handle user authorization. What's the difference? When the user logs into the system successfully, we _authenticate_ them based on the credentials they send (such as a proper combination of email and password). Authorization means determining whether the user is actually authorized to perform some action in the system.
 
-Let's add a dummy route to our API to see how to protect a route:
+With the token, we can determine which user is making a request. With that information, we can determine if the specific user making the request is _authorized_ to carry out a specific action, such as create documents or delete or update a specific document.
 
-Add the following route to your users controller:
 
-```js
-// PRIVATE
-// GET /api/private
-router.get('/private', (req, res)=>{
-    return res.json({"message": "thou hath been granted permission to access this route!"})
-})
-```
 
-Try hitting this route in postman. No problem, right? Wrong! This means any joe blow could hit this route, logged in or not! Let's add the the passport middleware that allows us to authenticate the user based on the token sent by the client.
+---
+>>>>>>>>>>>>>>>>>>>>>>>>>>BELOW THIS LINE IS DRAFT<<<<<<<<<<<<<<<<<<<<<<<<<<
+---
 
-1. Start by importing Passport at the top:
-```js
-const passport = require('passport')
-```
 
-1. Then add the `passport.authenticate` middleware to the route:
+## Setup Postman to Run Tests Sequentially
 
-```js
-// PRIVATE
-// GET /api/private
-// this is an example of a protected route
-// the client must send a valid token to get 
-// the response from this route
-router.get('/private', passport.authenticate('jwt', {session: false}), (req, res)=>{
-    return res.json({"message": "thou hath been granted permission to access this route!"})
-})
-```
+Postman actually contains a ton of helpful features for running API tests. One feature that can be particularly helpful is the ability to set up an environment for your API that stores variables. Even better, we can automatically update the variables when we receive a response from the server. This is especially helpful when you're dealing with requests that are dependent upon data other requests. For example, we now have to set that long-ass token into the Authorization header of everyone of our POST, DELETE and PUT routes for our job resource, and since the token expires after some time, we’ll have to do it regularly.
 
-Now try to hit the route in postman - what happens? You're not authorized!
+### Create Environment Variables
 
-1. You will likely have several routes that need this middelware, so let's make writing it out a little more concise. Store this method in a variable called `requireToken` at the bottom of `auth.js` and add it to the export:
+1. Open Postman.
+1. Click on the gear icon (:gear:) on the top right side of the window just below the taskbar.
+1. When the Manage Environments modal appears, click the orange Add button at the bottom of the modal.
+1. Give your environment a descriptive name such as **Job Board API**.
+1. For the first variable, name it `url` and set the **initial value** and **current value** column to: `http://localhost:8000/api`.
+
+1. Add a second variable named `id` and set its initial value to an empty string (`''`).
+1. Add a third variable named `token` and also set its initial value to an empty string (`''`).
+1. Click the orange Add button on this screen and then close the modal by clicking the x in the upper right corner.
+1. In the environments dropdown selection list choose your new **Job Board API** environment.
+
+### Add Test Script to the Signin Request
+
+Now you can update your `/signin` request in Postman. Instead of manually having to copy and paste the token to each of our resource request in Postman, we can have Postman automatically run some code when the response to our signin request is received and set the token in the variable we created.
+
+1. Open the signin request you created earlier in Postman.
+1. In the toolbar below the request URL input field, click the **Tests** tab and add the following code:
 
 ```js
-// Create a variable that holds the authenticate method so we can
-// export it for use in our routes
-const requireToken = passport.authenticate('jwt', {session: false})
-
-module.exports = { createUserToken, requireToken }
+var data = pm.response.json();
+pm.environment.set('token', data.token);
 ```
 
-1. Now just add `requireToken` to the import at the top of the user controller, and replace it in the route arguments:
+Click the blue Send button and then click the eyeball icon next to the environments dropdown. You should now see the **token** variable is set. :tada:
 
-```js
-...
-const { createUserToken, requireToken } = require('../middleware/auth')
-...
-router.get('/private', requireToken, (req, res)=>{
-    return res.json({"message": "thou hath been granted permission to access this route!"})
-})
-```
+### Set the Authorization Header in the Jobs Post Request
 
-### Set the Authorization Header in the Request
+With the token stored in a variable, it’s easy for us to add it to our authenticated requests.
 
-1. Log in or sign up a user and copy the token string
-1. Open the request you created for the post to the `/api/private` route.
+1. Open the request you created for the post to the `/jobs` route.
 1. In the toolbar below the request URL input field, click the **Headers** tab.
-1. Add a header with `Authorization` set for the key and `Bearer <token no quotes or brackets>` set for the value.
+1. Add a header with `Authorization` set for the key and `Bearer {{token}}` set for the value.
+1. Back in the toolbar, click the **Tests** tab and add the following code:
 
-With the token, we can determine which user is making a request. With that information, we can determine if the specific user making the request is _authorized_ to carry out a specific action, such as create documents or delete or update a specific document. What sorts of routes will you want to protect in your Project 3?
+```js
+var data = pm.response.json();
+pm.environment.set('id', data._id);
+```
 
-## Handling Authentication in React
+Make sure youʼve still got JSON data set in the **Body** tab and click the blue Send button. Assuming that all went well, you should see the newly created job in the response window. You'll also have an id for the newly created job that you can easily use in your DELETE and PUT requests by changing the url on the requests to: `{{url}}/jobs/{{id}}`... How awesome is that!
+
+## Handle Authentication in React
 
 In terms of making the Fetch or Axios requests to the API in React, you'll now have to add the `Authorization` header to authenticated requests, such as:
 
@@ -719,6 +752,10 @@ One approach to handling the token is to use React's built in Context API to sto
 Alternatively, you can create state to hold your user in the App.js, along with a method to set the user state and pass that as a prop to your signin form's `handleSubmit` method. When the AJAX call to your server is successful and you get the token back from the API, you can call the method that sets the token in state in App. Now you can pass the token to all of the components that need it as props.
 
 There are also third party state management tools that could be used to store the token. They range from very basic ([`react-hooks-global-state`](https://www.npmjs.com/package/use-global-state)) to complex ([Redux](https://redux.js.org/)).
+
+## Test Authenticated Routes
+
+To write tests for authenticated routes, you'll need to use the [before or beforeEach hooks](https://mochajs.org/#hooks) in Mocha to generate a user token. You may find that using the async/await syntax is more straightforward here than using promise chains, but both will work. You can also use superagent as described in this [article](https://codeburst.io/authenticated-testing-with-mocha-and-chai-7277c47020b7).
 
 ---
 
