@@ -71,11 +71,11 @@ const mongoose = require('mongoose');
 const MONGODB_URI = `<put your connection string here>`
 
 mongoose
-  .connect()
-  .then((MONGODB_URI) =>
-    console.log(`Connected to db: ${instance.connections[0].name}`)
+  .connect(MONGODB_URI)
+  .then(instance =>
+    console.log(`🔗 Connected to db: ${instance.connections[0].name}`)
   )
-  .catch((error) => console.log('Connection failed!', error));
+  .catch((error) => console.log('💩 Connection failed!', error));
 
 module.exports = mongoose;
 ```
