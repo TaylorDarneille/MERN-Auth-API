@@ -14,7 +14,7 @@ First let's quickly set up a basic project environment.
 1. Run `git init` to initialize the repository for Git.
 1. Create a `.gitignore` and add the node_modules directory to it with `echo node_modules > .gitignore`
 1. Creat a `.env` file with `touch .env`
-1. Create an `index.js` file with `touch index.js`.
+1. Create an entry point (or main file) with `touch server.js`.
 1. Create some directories inside your project to organize your code with `mkdir models db controllers middleware`.
 1. Run `npm init -y` to initialize the repository for npm.
 1. Install dependencies with `npm i express cors mongoose dotenv`.
@@ -27,8 +27,7 @@ MERN-AUTH-API
     ├── index.js
     ├── controllers
     ├── middleware
-    ├── models
-    └── db
+    └── models
 ```
 <!-- INIT_DIRECTORY_DIAGRAM - START -->
 <!-- prettier-ignore-end -->
@@ -65,15 +64,15 @@ First, let's set our app up to use Atlas instead of our local mongo database.
 
 ### Connect to MongoDB
 
-1. Create a file in the `db` directory called `connection.js` and add the following code:
+1. Create a file in the `models` directory called `index.js` and add the following code:
 
 ```js
 const mongoose = require('mongoose');
-const DB_CONNECTION_STRING = `<put your connection string here>`
+const MONGODB_URI = `<put your connection string here>`
 
 mongoose
   .connect()
-  .then((DB_CONNECTION_STRING) =>
+  .then((MONGODB_URI) =>
     console.log(`Connected to db: ${instance.connections[0].name}`)
   )
   .catch((error) => console.log('Connection failed!', error));
@@ -83,7 +82,7 @@ module.exports = mongoose;
 
 Make sure to add a db username and password and name to the appropriate parts of the connection string. For example: `mongodb+srv://sei:seisei@sei-mern-auth.a0ell.mongodb.net/SEI-MERN-Auth?retryWrites=true&w=majority`
 
-2.Back in the Terminal make sure you're in the `MERN-AUTH-API` directory and run the file to test your connection using NodeJS with `node db/connection.js`. If you get a `Connection failed` error or do not see `Connected to db: job-board`, [check and make sure that your MongoDB server is running](https://git.generalassemb.ly/seir-129/mongo-install-homework). Otherwise, you should see output similar to the following:
+2.Back in the Terminal make sure you're in the `MERN-AUTH-API` directory and run the file to test your connection using NodeJS with `node models/index.js`. If you get a `Connection failed` error or do not see `Connected to db: job-board`, [check and make sure that your MongoDB server is running](https://git.generalassemb.ly/seir-129/mongo-install-homework). Otherwise, you should see output similar to the following:
 
 ```bash
 (node:48059) DeprecationWarning: current URL string parser is deprecated, and will be removed
@@ -107,13 +106,13 @@ mongoose
   ...
 ```
 
-4. Back in the Terminal, type `control + C` to stop the process that's running and return to the command prompt. Now, try running the connection.js file again with `node db/connection.js`. This time you should only see the connection message.
+4. Back in the Terminal, type `control + C` to stop the process that's running and return to the command prompt. Now, try running the `index.js` file again with `node models/index.js`. This time you should only see the connection message.
 
 5. Great! But, we know that this API isn't always going to be run on our Atlas cluster, so we should use an environment variable for the connection string. 
 
-* Move your connection string to be an environment variable by putting it in your `.env` file, then import and configure `dotenv` at the top of `db/connection.js`.
+* Move your connection string to be an environment variable by putting it in your `.env` file, then import and configure `dotenv` at the top of `models/index.js`.
 
-* You'll also need to change the `connect` argument to include the `process.env.DB_CONNECTION_STRING`. 
+* You'll also need to change the `connect` argument to include the `process.env.MONGODB_URI`. 
 
 6. Finally, export your connected mongoose instance for use in other files by adding `module.exports = mongoose`
 
@@ -127,7 +126,7 @@ const mongoose = require('mongoose');
 
 // Use Mongoose's connect method to connect to MongoDB by passing it the db URI.
 // Pass a second argument which is an object with the options for the connection.
-mongoose.connect(process.env.DB_CONNECTION_STRING, {
+mongoose.connect(process.env.MONGODB_URI, {
     useNewUrlParser: true,
     useCreateIndex: true,
     useUnifiedTopology: true,
@@ -141,7 +140,7 @@ mongoose.connect(process.env.DB_CONNECTION_STRING, {
   // the Terminal.
   .catch(error => console.log('Connection failed!', error));
 
-// Export the connection so we can use it elsewhere in our app.
+// Export the connection so we can use it elsewhere in our app, we will change this eventually
 module.exports = mongoose;
 ```
 
@@ -149,7 +148,7 @@ module.exports = mongoose;
 
 ### Setup a Server
 
-1. In the `index.js` file lets create a basic Express server and get it running. We need to require Express and store it in a variable called `express`. Then we'll invoke express to instantiate the Express application object and store that in a variable called `app`. Finally, we'll listen on port 8000 for requests and add a callback so we know its running. The basic server looks like this:
+1. In the `server.js` file lets create a basic Express server and get it running. We need to require Express and store it in a variable called `express`. Then we'll invoke express to instantiate the Express application object and store that in a variable called `app`. Finally, we'll listen on port 8000 for requests and add a callback so we know its running. The basic server looks like this:
 
 ```js
 const express = require('express');
@@ -163,15 +162,15 @@ app.listen(8000, () => {
 2. Use `nodemon` to run the server.
 
 3. This server doesn't do anything at all, so lets build it out a bit more. We know we'll be adding our routes in here so let's require `mongoose` and while we're at it import the [cors package](https://www.npmjs.com/package/cors) and set up the middleware. Remember, to use a middleware in Express we need to pass it to the `app.use()` method.
-1. We're also going to have to use two of the built-in middleware packages since we're going to be making requests via AJAX to the server, so add `app.use(express.json())` and `app.use(express.urlencoded({ extended: true }))`.
-1. Lastly, again, we know that eventually we'll be running this on a remote server, so lets create a PORT environment variable. We can assign the variable the value of the PORT environment variable that will be set in Heroku OR if that environment variable doesn't exist, it should use 8000.
+4. We're also going to have to use two of the built-in middleware packages since we're going to be making requests via AJAX to the server, so add `app.use(express.json())` and `app.use(express.urlencoded({ extended: true }))`.
+5. Lastly, again, we know that eventually we'll be running this on a remote server, so lets create a PORT environment variable. We can assign the variable the value of the PORT environment variable that will be set in Heroku OR if that environment variable doesn't exist, it should use 8000.
 
 The completed file should look like this when done:
 
 ```js
 // Require necessary NPM packages
 const express = require('express');
-const mongoose = require('mongoose');
+const mongoose = require('./models');
 const cors = require('cors');
 
 // Instantiate express application object
@@ -186,20 +185,21 @@ app.use(cors());
 // The urlencoded middleware parses requests which use
 // a specific content type (such as when using Axios)
 app.use(express.urlencoded({ extended: true }))
+app.use(express.json())
 
 // Run server on designated port
 app.listen(process.env.PORT || 8000, () => {
-  console.log('SEI MERN AUTH API running')
+  console.log(`🎧 You're listening to the sounds of Port ${process.env.PORT || 8000} 🎧`)
 })
 ```
 
 ### Create the User Model
 
-1. Create a new file in the `models` directory called `User.js`.
-1. Create a basic user model. To keep things simple, our model is going to be super streamlined with just `email` and `password` fields. We'll also add a timestamp [option](https://mongoosejs.com/docs/guide.html#options) so we automatically get the `createdAt` and `updatedAt` fields.
+1. Create a new file in the `models` directory called `user.js`.
+2. Create a basic user model. To keep things simple, our model is going to be super streamlined with just `email` and `password` fields. We'll also add a timestamp [option](https://mongoosejs.com/docs/guide.html#options) so we automatically get the `createdAt` and `updatedAt` fields.
 
 ```js
-const mongoose = require('../db/connection');
+const mongoose = require('mongoose');
 const options = {
   timestamps: true
 }
@@ -249,7 +249,7 @@ const router = express.Router();
 module.exports = router;
 ```
 
-You'll also need to write the controller middleware for users in `index.js`:
+You'll also need to write the controller middleware for users in `server.js`:
 
 
 
@@ -272,14 +272,14 @@ router.post('/login', (req, res) => {
 })
 ```
 
-Import the user controllers to `index.js` underneath any other middleware you have:
+Import the user controllers to `server.js` underneath any other middleware you have:
 
 ```js
 // Import the user resource actions
 app.use('/api', require('./controllers/users'))
 ```
 
-Test that these routes are being hit via Postman!
+Test that these routes are being hit via Insomnia!
 
 3. Import the `User` model into your users controller
 `const User = require('../models/User')`
@@ -296,7 +296,7 @@ router.post('/signup', (req, res, next) => {
 })
 ```
 
-Use Postman to sign up a new user!
+Use Insomnia to sign up a new user!
 
 5. We're building an API that will send data in JSON format, so let's be legit and use the [JSON response method](http://expressjs.com/en/api.html#res.json) provided by express. 
 
@@ -341,7 +341,7 @@ const options = {
 }
 ```
 
-Create a new user in Postman. :tada: No more password being sent! However, it seems we introduced another issue. Now, we have both an `_id` and an `id` field. Technically, this additional `id` field is just a virtual because we used a toJSON virtual. You can verify that itʼs not storing the value in MongoDB separately. If it bugs you, you can add `id: false` as a key/value pair in the options object that has the `timestamps` and `toJSON` properties.
+Create a new user in Insomnia. :tada: No more password being sent! However, it seems we introduced another issue. Now, we have both an `_id` and an `id` field. Technically, this additional `id` field is just a virtual because we used a toJSON virtual. You can verify that itʼs not storing the value in MongoDB separately. If it bugs you, you can add `id: false` as a key/value pair in the options object that has the `timestamps` and `toJSON` properties.
 
 ### Store a Hashed Password
 
@@ -584,7 +584,7 @@ router.post('/login', (req, res)=>{
   .catch(err=>console.log('ERROR LOGGING IN:', err))
 })
 ```
-Now use Postman to try out both of these routes. You should get a token as the response!
+Now use Insomnia to try out both of these routes. You should get a token as the response!
 
 Head over to [jwt.io](https://jwt.io/) to see your token decoded and you can read about the anatomy of a JSON Web Token [here](https://scotch.io/tutorials/the-anatomy-of-a-json-web-token).
 
